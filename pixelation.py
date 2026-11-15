@@ -57,7 +57,7 @@ def _load_font(size: int) -> ImageFont.ImageFont:
 
 
 def render_pixel_grid_with_values(
-    pixel_array: np.ndarray, upscale_to: int = 320
+    pixel_array: np.ndarray, upscale_to: int = 320, show_values: bool = True
 ) -> Image.Image:
     """Upscale a 32x32 array with crisp blocks, grid lines and per-cell values."""
     pixels = np.asarray(pixel_array, dtype=np.uint8)
@@ -77,6 +77,8 @@ def render_pixel_grid_with_values(
         draw.line([(0, p), (upscale_to, p)], fill=(90, 90, 90), width=1)
 
     # Intensity text centered in each cell; contrast color chosen per cell.
+    if not show_values:
+        return img
     font = _load_font(7)
     for r in range(n):
         for c in range(n):
