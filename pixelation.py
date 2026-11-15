@@ -56,16 +56,35 @@ def _load_font(size: int) -> ImageFont.ImageFont:
         return ImageFont.load_default()
 
 
+# Color maps the UI can offer (name -> OpenCV colormap id; None = plain grayscale).
+COLORMAPS = {
+    "Grayscale": None,
+    "Fire": cv2.COLORMAP_INFERNO,
+    "Ocean": cv2.COLORMAP_OCEAN,
+    "Viridis": cv2.COLORMAP_VIRIDIS,
+    "Rainbow": cv2.COLORMAP_TURBO,
+}
+
+
 def render_pixel_grid_with_values(
-    pixel_array: np.ndarray, upscale_to: int = 320, show_values: bool = True
+    pixel_array: np.ndarray,
+    upscale_to: int = 320,
+    show_values: bool = True,
+    colormap: str = "Grayscale",
 ) -> Image.Image:
     """Upscale a 32x32 array with crisp blocks, grid lines and per-cell values."""
     pixels = np.asarray(pixel_array, dtype=np.uint8)
     n = pixels.shape[0]
 
+    # Optionally tint intensities with a colormap (purely cosmetic).
+    cmap = COLORMAPS.get(colormap)
+    if cmap is None:
+        rgb = np.stack([pixels] * 3, axis=-1)
+    else:
+        rgb = cv2.cvtColor(cv2.applyColorMap(pixels, cmap), cv2.COLOR_BGR2RGB)
+
     # Nearest-neighbour upscale keeps every cell a sharp, flat block.
-    img = Image.fromarray(pixels, mode="L").resize((upscale_to, upscale_to), Image.NEAREST)
-    img = img.convert("RGB")
+    img = Image.fromarray(rgb, mode="RGB").resize((upscale_to, upscale_to), Image.NEAREST)
     draw = ImageDraw.Draw(img)
 
     cell = upscale_to / n
@@ -76,17 +95,18 @@ def render_pixel_grid_with_values(
         draw.line([(p, 0), (p, upscale_to)], fill=(90, 90, 90), width=1)
         draw.line([(0, p), (upscale_to, p)], fill=(90, 90, 90), width=1)
 
-    # Intensity text centered in each cell; contrast color chosen per cell.
     if not show_values:
         return img
+
+    # Intensity text centered in each cell; text color contrasts with the cell color.
+    lum = rgb.astype(np.float32) @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
     font = _load_font(7)
     for r in range(n):
         for c in range(n):
-            v = int(pixels[r, c])
-            color = (255, 255, 255) if v < 128 else (0, 0, 0)
+            color = (255, 255, 255) if lum[r, c] < 128 else (0, 0, 0)
             draw.text(
                 ((c + 0.5) * cell, (r + 0.5) * cell),
-                str(v),
+                str(int(pixels[r, c])),
                 fill=color,
                 font=font,
                 anchor="mm",
